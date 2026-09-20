@@ -1,0 +1,20 @@
+post_install() {
+  # Preset works in an installer chroot too; only activation requires a booted
+  # system. Administrators can override NVIDIA's preset in /etc/systemd.
+  systemctl preset nvidia-cdi-refresh.service nvidia-cdi-refresh.path
+  if ! systemd-detect-virt --chroot --quiet && systemd-notify --booted; then
+    systemctl daemon-reload
+    local unit
+    for unit in nvidia-cdi-refresh.service nvidia-cdi-refresh.path; do
+      if systemctl --quiet is-enabled "$unit"; then
+        systemctl start "$unit"
+      fi
+    done
+  fi
+}
+
+post_upgrade() {
+  if (( $(vercmp "$2" '1.20.0-1.1') < 0 )); then
+    post_install
+  fi
+}
