@@ -12,33 +12,36 @@ systemctl() {
     return "$enabled_status"
   fi
 }
-systemd-detect-virt() { return "$chroot_status"; }
 systemd-notify() { return "$booted_status"; }
 
 # Offline installation must arrange the next boot without probing the GPU or
 # contacting a service manager in the installer host.
-chroot_status=0 booted_status=1 enabled_status=0
+booted_status=1 enabled_status=0
 post_install
 [[ $(wc -l < "$calls") == 1 ]]
 grep -Fxq 'preset nvidia-cdi-refresh.service nvidia-cdi-refresh.path' "$calls"
 
-# The first upgrade from the old transaction hook must activate both units.
+# The first upgrade from the old transaction hook must activate both units
+# without waiting for them.
 > "$calls"
-chroot_status=1 booted_status=0
-post_upgrade 1.20.0-2 1.20.0-1
-grep -Fxq 'start nvidia-cdi-refresh.service' "$calls"
-grep -Fxq 'start nvidia-cdi-refresh.path' "$calls"
+booted_status=0
+post_upgrade 1.20.0-1.2 1.20.0-1
+grep -Fxq 'preset nvidia-cdi-refresh.service nvidia-cdi-refresh.path' "$calls"
+grep -Fxq 'start --no-block nvidia-cdi-refresh.service' "$calls"
+grep -Fxq 'start --no-block nvidia-cdi-refresh.path' "$calls"
 
-# An administrator preset disabling the units must prevent activation.
+# An administrator preset disabling the units must prevent activation, and a
+# disabled last unit must not fail the scriptlet.
 > "$calls"
 enabled_status=1
 post_install
-! grep -q '^start ' "$calls"
+if grep -q '^start ' "$calls"; then exit 1; fi
 
-# Later upgrades must not reapply presets over an administrator decision.
-> "$calls"
-post_upgrade 1.20.1-1 1.20.0-2
-[[ ! -s $calls ]]
-post_upgrade 1.20.0-1.1 1.20.0-1.1
-[[ ! -s $calls ]]
+# Upgrades from packages that already ship the units must not reapply presets
+# over an administrator decision.
+for old in 1.20.0-1.1 1.20.0-1.2 1.20.0-2; do
+  > "$calls"
+  post_upgrade 1.20.1-1 "$old"
+  [[ ! -s $calls ]]
+done
 echo 'PASS: offline install, old-package upgrade and administrator service policy'
