@@ -8,6 +8,32 @@ import subprocess
 import sys
 import tempfile
 
+# The GB10 superchip's GPU (DGX Spark and other GB10 systems), as
+# omarchy-hw-platform identifies the platform.
+GB10_GPU = ('0x10de', '0x2e12')
+PCI_DEVICES = Path('/sys/bus/pci/devices')
+DOCKER_CONFIG = Path('/etc/docker/daemon.json')
+
+
+def gb10_present(devices=PCI_DEVICES):
+    for device in devices.iterdir():
+        try:
+            ids = tuple((device / name).read_text().strip() for name in ('vendor', 'device'))
+        except OSError:
+            continue
+        if ids == GB10_GPU:
+            return True
+    return False
+
+
+def configure_docker(config=DOCKER_CONFIG):
+    """Register NVIDIA's runtime with Docker; restart a running daemon only if that changed it."""
+    before = config.read_bytes() if config.exists() else None
+    subprocess.run(['/usr/bin/nvidia-ctk', 'runtime', 'configure', '--runtime=docker',
+                    '--config=' + str(config)], check=True)
+    if config.read_bytes() != before:
+        subprocess.run(['/usr/bin/systemctl', 'try-restart', 'docker.service'], check=True)
+
 
 def account(environ):
     user = environ.get('SUDO_USER', '')
@@ -30,6 +56,8 @@ def policy(user):
 def main():
     if os.geteuid() != 0 or len(sys.argv) != 1:
         raise SystemExit('Run sudo /usr/lib/nvwb-spark/authorize without arguments.')
+    if not gb10_present():
+        raise SystemExit('This Workbench package supports only NVIDIA GB10 systems such as the DGX Spark.')
     try:
         entry = account(os.environ)
     except (ValueError, KeyError) as error:
@@ -42,6 +70,7 @@ def main():
             stream.write(policy(user))
         os.chmod(temporary, 0o440)
         subprocess.run(['/usr/bin/visudo', '-cf', temporary], check=True)
+        configure_docker()
         subprocess.run(['/usr/bin/usermod', '-aG', 'docker', user], check=True)
         os.replace(temporary, directory / ('nvwb-spark-' + user))
     finally:
