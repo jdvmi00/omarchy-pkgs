@@ -30,8 +30,8 @@ Installing the package grants nothing. On first launch a terminal explains the
 access needed and asks for confirmation and your password. It then:
 
 - registers NVIDIA's runtime in `/etc/docker/daemon.json` with
-  `nvidia-ctk runtime configure --runtime=docker`, restarting a running Docker
-  daemon if that changed the file;
+  `nvidia-ctk runtime configure --runtime=docker`, restarting Docker if it is
+  running without that runtime;
 - adds your account to the `docker` group, which is equivalent to root access;
 - installs `/etc/sudoers.d/nvwb-spark-<username>`, allowing only:
 

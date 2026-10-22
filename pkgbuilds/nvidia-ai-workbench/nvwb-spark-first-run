@@ -17,8 +17,8 @@ echo "Workbench needs direct Docker access to build and run GPU projects."
 echo "This adds your account to the docker group. Programs running as you will"
 echo "then have access equivalent to root through Docker."
 echo
-echo "Setup registers NVIDIA's container runtime with Docker. If that changes"
-echo "Docker's configuration, Docker restarts and running containers stop."
+echo "Setup registers NVIDIA's container runtime with Docker. If Docker is"
+echo "running without it, Docker restarts and running containers stop."
 echo
 echo "Setup also permits starting and stopping only your Workbench service"
 echo "without another password prompt. App updates are managed by Omarchy."
